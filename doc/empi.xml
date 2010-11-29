@@ -1,0 +1,245 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE guide SYSTEM "/dtd/guide.dtd">
+<!-- $Header$ -->
+
+<!--<guide link="proj/en/cluster/empi.xml" lang="en"> -->
+
+<guide link="http://dev.gentoo.org/~jsbronder/empi.xml" lang="en"> -->
+<title>Handling Multiple MPI Implementations</title>
+
+<author title="Author">
+  <mail link="jsbronder@gentoo.org">Justin Bronder</mail>
+</author>
+
+<abstract>
+This guide will serve as a brief introduction to empi and eselect-mpi which
+can be used to manage multiple installations of MPI implementations.
+</abstract>
+
+<!-- The content of this document is licensed under the CC-BY-SA license -->
+<!-- See http://creativecommons.org/licenses/by-sa/2.5 -->
+<license/>
+
+<version>1.0</version>
+<date>2008-06-03</date>
+
+<chapter>
+<title>Introduction</title>
+
+<section>
+<title>Motivation</title>
+<body>
+<p>
+There are numerous MPI (Message Passing Interface) implementations in the
+portage tree, and far more in general.  While it would be nice if everyone could
+settle on just one, there are a number of reasons this isn't going to happen
+anytime soon.  For instance, binary-only applications that rely on a specific
+implementation/version, early support for new hardware, and, of course,
+developer preference.
+</p>
+<p>
+The goal of empi is to ease the administrator burden inherent in managing
+numerous HPC applications and libraries, each of which support some subset of the
+available MPI implementations.  Also, empi strives to ensure that any user of an
+HPC system can happily work with their favorite implementation and supporting
+applications, while another user may utilize an entirely different
+implementation, with potentially overlapping applications.
+</p>
+<p>
+If you are only concerned with quickly getting up and running, you may skip the
+rest of this section as it only serves to provide a description of how empi
+works behind the scenes.
+</p>
+</body>
+</section>
+
+<section>
+<title>Empi</title>
+<body>
+<p>
+Heavily based on sys-devel/crossdev, empi is a script wrapping portage that uses
+a small bit of trickery to emerge MPI implementations and any dependent
+packages to unique directories in <path>/usr/lib/mpi/</path>.  Quickly
+explained, this is done by making a local overlay, creating new categories that
+define a set consisting of a single version of one MPI implementation and any
+packages that utilize this implementation, and then using that category to find
+the correct install locations.  The bulk of the work involving portage is
+handled by <i>mpi.eclass</i>.
+</p>
+<p>
+Empi itself can handle creating the overlay directory structure, merging
+definitions in package.use and package.keywords, and calling emerge for the
+required packages.  The overlay is created using symlinks, so any update to the
+portage tree will be replicated in the empi overlay.
+</p>
+</body>
+</section>
+
+<section>
+<title>mpi.eclass</title>
+<body>
+<p>
+The eclass uses the package category to decide where a package should be
+installed inside of <path>/usr/lib/mpi/</path>.  Only packages inheriting this
+eclass will ever be installed in this separate root.  The advantage over using
+<i>ROOT=/some/where/ emerge stuff</i> being we only need to install packages
+that actually require MPI or are implementations into this separate root
+directory, everything else is provided by the standard system.
+</p>
+<p>
+Note that it is required that any ebuild will have to be ported to use
+<i>mpi.eclass</i>, just inheriting in anything but the simplest ebuild will not
+work automatically.  Currently autotools based packages can be ported with minimal
+effort.  Sadly, these are in the minority in the HPC package space, so
+mpi.eclass also provides mechanisms for getting install paths as well as wrappers
+around the standard ebuild utilities, do* and new*, with the prefix mpi_.  For
+instance, if an ebuild needs to call <i>dobin</i>, it should be ported to use
+<i>mpi_dobin</i> instead.
+</p>
+<p>
+The eclass should be transparent if empi is not being used;  packages can
+still be emerged normally onto the system without any trace of mpi.eclass being
+used.
+</p>
+</body>
+</section>
+
+
+<section>
+<title>eselect-mpi</title>
+<body>
+<p>
+Recall that the grand unified goal is to enable users to easily work with different
+implementations at the same time on the same system.  Therefore, unlike the
+majority of the other eselect modules, eselect-mpi is designed to
+administer a users' personal MPI environment.  This is done by writing the
+required environment variables and other implementation specific details to
+<path>${HOME}/.env.d/mpi.sh</path> and <path>${HOME}/.env.d/mpi.csh</path> which
+the user must remember to source if they plan on utilizing the implementation.
+For the curious, all we're really doing is providing the environment variables
+such as <i>PATH</i>, <i>MANPATH</i> and <i>LD_LIBRARY_PATH</i> in this file.
+</p>
+<p>
+A user may also use eselect-mpi to unselect an implementation.  Then, after
+re-sourcing the appropriate file in <path>${HOME}/.env.d/</path>, their
+environment is returned to its previous (empi-less) state and they may continue
+on with their work using the system MPI implementation (if installed).
+</p>
+</body>
+</section>
+</chapter>
+
+
+<chapter>
+<title>Using empi</title>
+
+<section>
+<title>Installing empi</title>
+<body>
+<p>
+The above introduction makes a lot more sense once we actually get some
+implementations installed and start working with them.  To begin, add the
+science overlay, which is where empi and the related ebuilds are currently being
+maintained.
+<note>
+You may need to keyword sys-cluster/empi for the following code to complete.
+Also, be aware that the science overlay is currently maintained using
+git, so you must have the client installed for layman to add it.
+</note>
+<pre caption="Adding the science overlay">
+emerge app-portage/layman
+layman -a science
+emerge sys-cluster/empi
+</pre>
+</p>
+</body>
+</section>
+
+<section>
+<title>Adding a Implementation and Packages</title>
+<body>
+<p>
+To get started, we'll add a single implementation based on sys-cluster/openmpi
+as well as the sys-cluster/hpl package that will be built using openmpi and
+installed into the correct root.
+<note>
+For the duration of this documentation, implementation will be used to refer to
+a package providing MPI, whereas class will be used to refer to the set of a
+single implementation and any packages using it.
+</note>
+<pre caption="Adding a base MPI implementation">
+/usr/bin/empi --create --class mpi-openmpi =sys-cluster/openmpi-1.2.6-r1
+</pre>
+The above says that we want to create a new class, based on
+sys-cluster/openmpi-1.2.6-r1 and that we're going to call this class 
+<i>mpi-openmpi</i> from now on.  Empi will happily create the overlay structure
+in <path>/usr/local/portage/</path>, duplicate anything related to openmpi in
+<i>package.keywords</i> or <i>package.use</i>, and emerge
+mpi-openmpi/openmpi-1.2.6-r1.
+<impo>
+Class names must always be prefixed with 'mpi-'
+</impo>
+<note>
+<path>/usr/local/portage/mpi-openmpi/openmpi</path> is actually a symlink to
+<path>/usr/portage/sys-cluster/openmpi</path> so any updates to
+sys-cluster/openmpi also update mpi-openmpi/openmpi.
+</note>
+</p>
+<p>
+Note that empi emerged mpi-openmpi/openmpi-1.2.6-r1 and not
+sys-cluster/openmpi-1.2.6-r1.  By changing the category, empi is alerting
+mpi.eclass that it needs to handle separating this install from the standard
+system root.  This new package can be manipulated using portage via all the
+normal mechanisms.  Next, we add sys-cluster/hpl to the mpi-openmpi class.
+<pre caption="Adding sys-cluster/hpl to the mpi-openmpi class">
+/usr/bin/empi --class mpi-openmpi --add sys-cluster/hpl
+</pre>
+</p>
+<p>
+Both openmpi and hpl are now installed in the
+<path>/usr/lib/mpi/mpi-openmpi</path> root.  However, a user still needs to
+actually select this class in order to start using it.
+<pre caption="Selecting the mpi-openmpi class">
+$ eselect mpi set mpi-openmpi
+$ eselect mpi list
+Available MPI classes:
+  mpi-openmpi               Enabled
+$ source /etc/profile
+$ eselect mpi list
+Available MPI classes:
+  mpi-openmpi               Enabled, In Use
+</pre>
+</p>
+<p>
+Other classes can be created and used in the same manner as
+show above.  
+</p>
+
+</body>
+</section>
+</chapter>
+
+
+<chapter>
+<title>References</title>
+<section>
+<title>Links</title>
+<body>
+<p>
+<ul>
+<li>
+<uri link="/proj/en/overlays/userguide.xml">Gentoo Overlays: Users' Guide</uri>
+</li><li>
+<uri link="http://dev.gentoo.org/~vapier/CROSS-COMPILE-HOWTO">Cross-Compile
+Howto</uri>
+</li><li>
+<uri link="http://overlays.gentoo.org/proj/science">Gentoo Science Overlay</uri>
+</li>
+</ul>
+</p>
+</body>
+</section>
+</chapter>
+
+
+</guide>
