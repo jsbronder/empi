@@ -26,6 +26,7 @@ Options:
     ${GOOD}-C, --class${NORMAL} class           MPI class to use.
     ${GOOD}-t, --tree${NORMAL} path             Path to portage tree to use ebuilds from.
     ${GOOD}-o, --overlaydir${NORMAL} path       Directory to use for the empi portage overlay.
+                                                Defaults to MPI_OVERLAY_DIR [$(portageq envvar MPI_OVERLAY_DIR)]
     ${GOOD}    --noemerge${NORMAL}              Do not call emerge, only preform overlay setup.
 
 Notes:
@@ -164,13 +165,13 @@ ebuild_uses_mpi() {
 }
 
 link_ebuild_dir() {
-    ln -snf "${EBUILD_DIR}" "${MPI_PORTDIR}"/${CLASS}/${EBUILD_DIR##*/} \
-        || die "Failed to link ${EBUILD_DIR} to ${MPI_PORTDIR}/${CLASS}/${EBUILD_DIR##*/}"
+    ln -snf "${EBUILD_DIR}" "${MPI_OVERLAY_DIR}"/${CLASS}/${EBUILD_DIR##*/} \
+        || die "Failed to link ${EBUILD_DIR} to ${MPI_OVERLAY_DIR}/${CLASS}/${EBUILD_DIR##*/}"
 }
 
 # TODO:  Needs to be called after get_ebuild_dir which sets $PORTAGE_TREE
 create_virtual_mpi() {
-    local d_dir="${MPI_PORTDIR}"/virtual/${CLASS}
+    local d_dir="${MPI_OVERLAY_DIR}"/virtual/${CLASS}
     local version d_file mpi_ebuild s_dir
 
     # Try to get virtual/mpi from the same tree as the other ebuilds.
@@ -231,7 +232,7 @@ create_class() {
     # Refuse to break systems.  If there is already a class
     # installed in that directory, we're not going to add another one as
     # the eclass doesn't fix one problem just to introduce a bigger one.
-    for d in $(find ${MPI_PORTDIR}/${CLASS} -maxdepth 1 -mindepth 1 -type l 2>/dev/null);do
+    for d in $(find ${MPI_OVERLAY_DIR}/${CLASS} -maxdepth 1 -mindepth 1 -type l 2>/dev/null);do
         d=${d##*/}
         [[ ${d} == ${mpi_class_pn} ]] && continue
         for i in ${MPI_ALL_IMPS}; do
@@ -240,10 +241,10 @@ create_class() {
         done
     done
 
-    if [[ -d "${MPI_PORTDIR}"/${CLASS} ]]; then
+    if [[ -d "${MPI_OVERLAY_DIR}"/${CLASS} ]]; then
         [[ ${VERBOSE} -ne 0 ]] && ewarn "Overlay for ${CLASS} has already been created."
     else
-        mkdir -p ${MPI_PORTDIR}/${CLASS}
+        mkdir -p ${MPI_OVERLAY_DIR}/${CLASS}
         link_ebuild_dir
     fi
     if ! grep "^${CLASS}$" /etc/portage/categories &>/dev/null; then
@@ -256,7 +257,7 @@ Creating ${HILITE}${CLASS}${NORMAL}
     Class:                  ${GOOD}${CLASS}${NORMAL}
     MPI Implementation:     ${GOOD}${mpi_class_pkg}${NORMAL}
     Source:                 ${GOOD}${EBUILD_DIR}${NORMAL}
-    Destination:            ${GOOD}${MPI_PORTDIR}/${CLASS}${NORMAL}
+    Destination:            ${GOOD}${MPI_OVERLAY_DIR}/${CLASS}${NORMAL}
 EOF
     do_emerge ${TARGETS[0]}
 }
@@ -265,7 +266,7 @@ EOF
 add_packages(){
     local i j deps
 
-    [[ -d "${MPI_PORTDIR}"/${CLASS} ]] || die "Class ${CLASS} has not been created yet."
+    [[ -d "${MPI_OVERLAY_DIR}"/${CLASS} ]] || die "Class ${CLASS} has not been created yet."
     [[ ${#TARGETS[@]} -lt 1 ]] && die "You need to specify at least one package"
 
     parse_pkgspecs
@@ -305,7 +306,7 @@ EOF
 delete_class() {
     local pkgs=( $(ls /var/db/pkg/${CLASS}/ 2>/dev/null) )
     local ext d i rc
-    [[ -d "${MPI_PORTDIR}"/${CLASS} ]] || die "Class ${CLASS} has not been created yet."
+    [[ -d "${MPI_OVERLAY_DIR}"/${CLASS} ]] || die "Class ${CLASS} has not been created yet."
     rc=0
 
     for (( i=0; i<${#pkgs[@]}; i++)); do
@@ -329,12 +330,12 @@ delete_class() {
     [ ! -f /etc/portage/categories ] || sed -i -e "/^${CLASS}$/d" /etc/portage/categories
     rc=$((rc+$?))
 
-   for d in $(ls "${MPI_PORTDIR}"/${CLASS}/ 2>/dev/null); do
-        rm "${MPI_PORTDIR}"/${CLASS}/${d}
+   for d in $(ls "${MPI_OVERLAY_DIR}"/${CLASS}/ 2>/dev/null); do
+        rm "${MPI_OVERLAY_DIR}"/${CLASS}/${d}
         rc=$((rc+$?))
     done
 
-    for d in "${MPI_PORTDIR}/${CLASS}" /var/db/pkg/${CLASS}; do
+    for d in "${MPI_OVERLAY_DIR}/${CLASS}" /var/db/pkg/${CLASS}; do
         [ ! -d "${d}" ] || rmdir "${d}"
         rc=$((rc+$?))
     done
@@ -351,7 +352,7 @@ __VIRTUAL_MPI_VERSION=">=virtual/mpi-2.0"
 ACTION=""
 CLASS=""
 PORTAGE_TREE=""
-MPI_PORTDIR=""
+MPI_OVERLAY_DIR=""
 VERBOSE=0
 DO_EMERGE=1
 EMERGE_OPTS="-u"  # Packages can be recompiled by hand if necessary.
@@ -378,7 +379,7 @@ while [[ $# -gt 0 ]]; do
         -t|--tree)
             shift; PORTAGE_TREE=${1};;
         -o|--overlaydir)
-            shift; MPI_PORTDIR=${1};;
+            shift; MPI_OVERLAY_DIR=${1};;
         -v|--verbose)
             VERBOSE=1;;
         --noemerge)
@@ -391,16 +392,20 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-if [ -z "${MPI_PORTDIR}" ]; then
-    MPI_PORTDIR="$(portageq portdir_overlay)"
-    MPI_PORTDIR="${MPI_PORTDIR%% *}"
+: ${MPI_OVERLAY_DIR:=$(portageq envvar MPI_OVERLAY_DIR)}
+if [ -z "${MPI_OVERLAY_DIR}" ]; then
+cat <<-EOF
+MPI_OVERLAY_DIR not set in the portage environment (/etc/make.conf)
+or by commandline (-o, --overlaydir).
+EOF
+    die "MPI_OVERLAY_DIR must be set"
 fi
 
-if [ ! -d "${MPI_PORTDIR}" ]; then
-    mkdir -p "${MPI_PORTDIR}" || die "Failed to mkdir ${MPI_PORTDIR}"
+if [ ! -d "${MPI_OVERLAY_DIR}" ]; then
+    mkdir -p "${MPI_OVERLAY_DIR}" || die "Failed to mkdir ${MPI_OVERLAY_DIR}"
 fi
 
-export PORTDIR_OVERLAY="${MPI_PORTDIR} $(portageq portdir_overlay)"
+export PORTDIR_OVERLAY="${MPI_OVERLAY_DIR} $(portageq portdir_overlay)"
 export PKGDIR="$(portageq envvar PKGDIR)/mpi/${CLASS}"
 
 [[ -z ${ACTION} ]] && usage 1 "No action defined."
