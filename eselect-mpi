@@ -58,9 +58,9 @@ init() {
 	[[ ${UID} -eq 0 ]] && HOME="${ROOT}/root"
 	d="$(canonicalise "${ROOT}/${HOME}")"
 	d="${d}/.env.d/"
-	user_ev_sh="${d}mpi.sh"; 
-	user_ev_csh="${d}mpi.csh"; 
-	
+	user_ev_sh="${d}mpi.sh";
+	user_ev_csh="${d}mpi.csh";
+
 	if [[ ! -d "${d}" ]]; then
 		mkdir "${d}" || die -q "Failed to create ${d}."
 	elif [[ ! -w "${d}" ]]; then
@@ -136,10 +136,10 @@ do_set() {
 		echo "Cannot select ${1} when ${current_imp} is in use."
 		return 1
 	fi
-	
-   binpath="$(load_config ${ev} PATH)"
-   lld="$(load_config ${ev} LD_LIBRARY_PATH)"
-   manpath="$(load_config ${ev} MANPATH)"
+
+	binpath="$(load_config ${ev} PATH)"
+	lld="$(load_config ${ev} LD_LIBRARY_PATH)"
+	manpath="$(load_config ${ev} MANPATH)"
 
 cat <<-EOF >${user_ev_sh}
 bpl=\`expr "\${PATH}" : ".*${binpath}:"\`
@@ -187,8 +187,8 @@ describe_unset() {
 }
 
 do_unset() {
-   	local lld current_imp
-   	init
+	local lld current_imp
+	init
 
 	current_imp="$(var_from_user_envd ESELECT_MPI_IMP)"
 
@@ -196,11 +196,11 @@ do_unset() {
 		echo "No implemention currently in use.  This is a no-op."
 		return
 	fi
-	
+
 	global_env "${ESELECT_MPI_IMP}"
 	lld="$(load_config ${ev} LD_LIBRARY_PATH)"
 
-   # PATH and MANPATH are reset in /etc/profile.
+	# PATH and MANPATH are reset in /etc/profile.
 cat <<-EOF > ${user_ev_sh}
 unset ESELECT_MPI_IMP
 l=\`expr "\${LD_LIBRARY_PATH}:" : ".*${lld}:"\`
@@ -220,7 +220,7 @@ if ( \${l} > 1 ) \
 	setenv LD_LIBRARY_PATH "\`expr substr \${LD_LIBRARY_PATH} \${l} 1024\`"
 EOF
 
-   echo "Remember to source /etc/profile or /etc/csh.login"
+	echo "Remember to source /etc/profile or /etc/csh.login"
 }
 
 ### add action (from skel pretty much)
