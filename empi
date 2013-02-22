@@ -348,7 +348,6 @@ delete_class() {
 # Internal variables.
 __VIRTUAL_MPI_VERSION=">=virtual/mpi-2.0"
 
-[[ ${UID} -ne 0 ]] && die "You must be root."
 ACTION=""
 CLASS=""
 PORTAGE_TREE=""
@@ -391,6 +390,8 @@ while [[ $# -gt 0 ]]; do
     esac
     shift
 done
+
+[[ ${UID} -ne 0 ]] && die "You must be root to preform any actions."
 
 : ${MPI_OVERLAY_DIR:=$(portageq envvar MPI_OVERLAY_DIR)}
 if [ -z "${MPI_OVERLAY_DIR}" ]; then
