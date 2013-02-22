@@ -26,7 +26,7 @@ Options:
     ${GOOD}-C, --class${NORMAL} class           MPI class to use.
     ${GOOD}-t, --tree${NORMAL} path             Path to portage tree to use ebuilds from.
     ${GOOD}-o, --overlaydir${NORMAL} path       Directory to use for the empi portage overlay.
-                                                Defaults to MPI_OVERLAY_DIR [$(portageq envvar MPI_OVERLAY_DIR)]
+                                Defaults to MPI_OVERLAY_DIR [${DEFAULT_MPI_OVERLAY_DIR}]
     ${GOOD}    --noemerge${NORMAL}              Do not call emerge, only preform overlay setup.
 
 Notes:
@@ -356,6 +356,7 @@ VERBOSE=0
 DO_EMERGE=1
 EMERGE_OPTS="-u"  # Packages can be recompiled by hand if necessary.
 TARGETS=""
+DEFAULT_MPI_OVERLAY_DIR=/var/cache/overlays/mpi
 
 PORTDIR_OVERLAY=""
 PKGDIR=""
@@ -395,11 +396,9 @@ done
 
 : ${MPI_OVERLAY_DIR:=$(portageq envvar MPI_OVERLAY_DIR)}
 if [ -z "${MPI_OVERLAY_DIR}" ]; then
-cat <<-EOF
-MPI_OVERLAY_DIR not set in the portage environment (/etc/make.conf)
-or by commandline (-o, --overlaydir).
-EOF
-    die "MPI_OVERLAY_DIR must be set"
+    MPI_OVERLAY_DIR=${DEFAULT_MPI_OVERLAY_DIR}
+    einfo "MPI_OVERLAY_DIR not set, defaulting to ${MPI_OVERLAY_DIR} and updating /etc/make.conf"
+    echo "MPI_OVERLAY_DIR=\"${MPI_OVERLAY_DIR}\"" >> /etc/make.conf
 fi
 
 if [ ! -d "${MPI_OVERLAY_DIR}" ]; then
