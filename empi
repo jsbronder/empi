@@ -352,7 +352,7 @@ add_packages(){
             handle_etc_portage ${TARGETS[i]}
             TARGETS[i]="=${CLASS}/${TARGETS[i]##*/}"
         else
-            TARGETS[i]="=${TARGETS[i]}"
+            die "${TARGETS[i]} does not support empi"
         fi
 
         # I don't know about this, but do you have a better idea?
