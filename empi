@@ -356,12 +356,12 @@ add_packages(){
         fi
 
         # I don't know about this, but do you have a better idea?
-        deps="$(emerge --color=n --onlydeps -p --quiet ${TARGETS[i]} | grep '^\[')"
-        if [[ $? -ne 0 ]]; then
+        deps="$(emerge --color=n --onlydeps -p --quiet ${TARGETS[i]})"
+        if [[ $rc -ne 0 ]]; then
             emerge --onlydeps -p ${TARGETS[i]}
             die "Unable to calculate deps for ${TARGETS[i]}"
         fi
-        deps=( $(echo ${deps} | sed -e 's:\[[a-z]* [A-Z] \] :=:g') )
+        deps=( $(echo ${deps} | grep '^\[' | sed -e 's:\[[a-z]* [A-Z] \] :=:g') )
         for ((j=0;j<${#deps[@]};j++)); do
             get_ebuild_dir ${deps[j]}
             if ebuild_uses_mpi ${deps[i]}; then
